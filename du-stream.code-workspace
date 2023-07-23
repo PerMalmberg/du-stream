@@ -1,0 +1,21 @@
+{
+	"folders": [
+		{
+			"path": "."
+		}
+	],
+	"settings": {
+		"runOnSave.commands": [
+			{
+				"match": ".*\\.lua",
+				"command": "make test",
+				"runIn": "terminal"
+			}
+		],
+		"Lua.workspace.library": [
+			"external/du-libs/",
+			"${3rd}/luassert/library",
+			"${3rd}/busted/library"
+		]
+	}
+}

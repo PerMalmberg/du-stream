@@ -1,0 +1,6 @@
+[submodule "external/du-serializer"]
+	path = external/du-serializer
+	url = git@github.com:PerMalmberg/du-serializer.git
+[submodule "external/du-unit-testing"]
+	path = external/du-unit-testing
+	url = git@github.com:PerMalmberg/du-unit-testing.git

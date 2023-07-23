@@ -1,0 +1,4 @@
+---@alias voidf fun()
+---@alias stringf fun():string
+---@alias boolf fun():boolean
+---@alias Device {Send:fun(data:string), Read:stringf, Clear:voidf, IsController:boolf}

@@ -154,7 +154,13 @@ describe("Stream", function()
                     )/%(&(%&¤&#¤&&¤/%&(¤(&/¤()&/(%%/((&/¤%/%#/#¤¤&¤&¤)))))))|||||| and then even more keyboard bashing. nghengwtangwnihe wnergeioger
                     gerjlgeraeragegerghearhgrwahgöoegjeargjnelaöighjnaewögerawg  geg ergeag jera jgaerj öae gäae gäaerj gäpear ägajeijg re.
 
-        Maybe we should use a fuzzer?]]
+        Maybe we should use a fuzzer?
+
+        Meh, lets mach the keyboard more to reach the blocksize for screens.
+
+        klgealkgwrngweroäg eöl gmöl ty34Y q455&YT 34 T¤#%q 6¤q6T"#¤Ty 3Y54qU576()/&43(57Q#¤3Qyt34¤Y35YU564wUI(%//&W¤%74#¤t&%#6y¤%Q q455
+        Y¤%6456¤%64%6 ¤%7 W¤764W 4W% 4W7¤7 ¤w/ ¤7¤(&/¤()&¤/)8790=)=&((%#7¤74%ÅÄÖ ¤Y QY&#y#Q _;(&¤47) ><f>F<f>fsfsFGAgaGaGaghERAy¤%724&/24/5(75638/45w7¤8#(6ERurherh¤%&76#%67(74684(537#¤%&&¤&&##%!%#¤%?=)(/&%¤#¤%&%¤¤
+        `?=)(/&%¤#¤%&/(()?=)(/&"#¤/)&(%/¤&#"|||||||]]
 
         controllerStream.Write(msg)
         for i = 1, 500, 1 do

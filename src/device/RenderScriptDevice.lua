@@ -3,6 +3,7 @@
 ---@field Read fun():string
 ---@field Clear fun()
 ---@field IsController fun():boolean
+---@field BlockSize fun():integer
 ---@field New fun(screenLink:table):Device
 
 local RenderScriptDevice = {}
@@ -31,6 +32,10 @@ function RenderScriptDevice.New()
     ---@return boolean
     function s.IsController()
         return false
+    end
+
+    function s.BlockSize()
+        return 1024
     end
 
     return setmetatable(s, RenderScriptDevice)

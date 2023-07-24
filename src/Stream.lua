@@ -1,8 +1,5 @@
-require("serializer") --QQQ from du-libs???
-local serializer = {
-    Serialize = serialize,
-    Deserialize = deserialize
-}
+require("serializer")
+
 ---@module "interface.Device"
 
 ---@alias CommQueue { queue:string[], waitingForReply:boolean, seq:integer }
@@ -51,9 +48,9 @@ Stream.__index = Stream
 ---@param parent DataReceiver
 ---@param timeout number The amount of time to wait for a reply before considering the connection broken.
 ---@return Stream
-function Stream.New(device, parent, timeout) -- QQQ Block size as argument or enum
+function Stream.New(device, parent, timeout)
     local s = {}
-    local blockSize = 1024 - headerSize      -- Game allows max 1024 bytes in buffers
+    local blockSize = device.BlockSize() - headerSize -- Game allows max 1024 bytes in buffers
 
     ---@diagnostic disable-next-line: undefined-global
     local getTime = getTime or system.getUtcTime
@@ -87,7 +84,7 @@ function Stream.New(device, parent, timeout) -- QQQ Block size as argument or en
         if count == 0 then
             local queue = input.queue
 
-            local deserialized = serializer.Deserialize(queue[#queue])
+            local deserialized = deserialize(queue[#queue])
 
             parent.OnData(deserialized)
             -- Last part, begin new data
@@ -150,7 +147,7 @@ function Stream.New(device, parent, timeout) -- QQQ Block size as argument or en
         return cmd, count, payload
     end
 
-    ---Call this function in OnUpdate
+    ---Call this function once every frame (i.e. in Update)
     function s.Tick()
         local cmd, count, payload = readData()
 
@@ -216,7 +213,7 @@ function Stream.New(device, parent, timeout) -- QQQ Block size as argument or en
     ---Write the data to the stream
     ---@param dataToSend table|string
     function s.Write(dataToSend)
-        local data = serializer.Serialize(dataToSend)
+        local data = serialize(dataToSend)
         local blockCount = math.ceil(data:len() / blockSize) - 1
 
         while data:len() > blockSize - headerSize do

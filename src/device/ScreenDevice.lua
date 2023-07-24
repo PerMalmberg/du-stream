@@ -5,6 +5,7 @@
 ---@field Read fun():string
 ---@field Clear fun()
 ---@field IsController fun():boolean
+---@field BlockSize fun():integer
 ---@field New fun(screenLink:table):Device
 
 local ScreenDevice = {}
@@ -36,6 +37,10 @@ function ScreenDevice.New(screenLink)
     function s.IsController()
         -- We're running on the controller when we have a link to a screen
         return true
+    end
+
+    function s.BlockSize()
+        return 1024
     end
 
     return setmetatable(s, ScreenDevice)

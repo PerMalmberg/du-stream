@@ -9,6 +9,7 @@
 ---@field Read fun():string
 ---@field Clear fun()
 ---@field SetChannel fun(string)
+---@field BlockSize integer
 ---@field New fun(emitter, receiver, channel:string, isController:boolean):Device
 
 ---@alias channelList string[]
@@ -23,7 +24,9 @@ RxTx.__index = RxTx
 ---@param isController boolean If true, this device is considered the controller.
 ---@return Device
 function RxTx.New(emitter, receiver, channel, isController)
-    local s = {}
+    local s = {
+        BlockSize = 256 -- QQQ check this
+    }
 
     local inQueue = {} ---@type string[]
 

@@ -1,4 +1,4 @@
-require("serializer")
+local _ = require("serializer")
 
 ---@module "interface.Device"
 

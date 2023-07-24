@@ -25,12 +25,16 @@ RxTx.__index = RxTx
 ---@return Device
 function RxTx.New(emitter, receiver, channel, isController)
     local s = {
-        BlockSize = 256 -- QQQ check this
+        BlockSize = 512
     }
+
+    -- Setup channels for two-way communication
+    local sendChannel = channel .. (isController and "-ctrl" or "-worker")
+    local recChannel = channel .. (isController and "-worker" or "-ctrl")
 
     local inQueue = {} ---@type string[]
 
-    receiver.setChannelList({ channel })
+    receiver.setChannelList({ recChannel .. "-cmd" })
 
     ---@diagnostic disable-next-line: undefined-field
     receiver:onEvent("onReceive", function(_, chan, message)
@@ -39,7 +43,7 @@ function RxTx.New(emitter, receiver, channel, isController)
 
     ---@param data string
     function s.Send(data)
-        emitter.send(channel, data)
+        emitter.send(sendChannel, data)
     end
 
     ---@return string

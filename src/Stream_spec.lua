@@ -92,6 +92,10 @@ function DummyReceiver.New()
         s.echo = true
     end
 
+    function s.RegisterStream(stream)
+
+    end
+
     return setmetatable(s, DummyReceiver)
 end
 

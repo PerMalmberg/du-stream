@@ -232,7 +232,11 @@ function Stream.New(device, parent, timeout)
     ---@return boolean
     function s.WaitingToSend() return #output.queue > 0 end
 
-    return setmetatable(s, Stream)
+    setmetatable(s, Stream)
+
+    parent.RegisterStream(s)
+
+    return s
 end
 
 return Stream

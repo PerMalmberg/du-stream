@@ -1,1 +1,1 @@
----@alias DataReceiver {OnData:fun(table), OnTimeout:fun(isTimedOut:boolean, stream:Stream)}
+---@alias DataReceiver {OnData:fun(table), OnTimeout:fun(isTimedOut:boolean, stream:Stream), RegisterStream:fun(stream:Stream)}

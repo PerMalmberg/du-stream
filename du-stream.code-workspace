@@ -16,6 +16,11 @@
 			"external/du-libs/",
 			"${3rd}/luassert/library",
 			"${3rd}/busted/library"
+		],
+		"Lua.runtime.path": [
+			"?.lua",
+			"?/init.lua",
+			"src/?.lua"
 		]
 	}
 }

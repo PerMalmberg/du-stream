@@ -21,6 +21,11 @@
 			"?.lua",
 			"?/init.lua",
 			"src/?.lua"
+		],
+		"Lua.diagnostics.globals": [
+			"library",
+			"system",
+			"unit"
 		]
 	}
 }

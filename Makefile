@@ -31,7 +31,5 @@ test: clean
 	@$(CLEAN_COV)
 
 dev: test
-	@LUA_PATH="$(LUA_PATH)" du-lua build --copy=development/main
-	@# Modify file inline. Actual regex is '/^\s*---.*$/d' but $ must be doubled in make file
-	@sed -i '/^\s*---.*$$/d' "./out/development/example/stream/screen.lua"
-	@sed -i '/^\s*---.*$$/d' "./out/development/example/render/main.lua"
+	@LUA_PATH="$(LUA_PATH)" du-lua build --copy=development/Controller
+

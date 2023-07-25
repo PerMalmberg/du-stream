@@ -24,9 +24,7 @@ RxTx.__index = RxTx
 ---@param isController boolean If true, this device is considered the controller.
 ---@return Device
 function RxTx.New(emitter, receiver, channel, isController)
-    local s = {
-        BlockSize = 512
-    }
+    local s = {}
 
     -- Setup channels for two-way communication
     local sendChannel = channel .. (isController and "-ctrl" or "-worker")
@@ -34,21 +32,25 @@ function RxTx.New(emitter, receiver, channel, isController)
 
     local inQueue = {} ---@type string[]
 
-    receiver.setChannelList({ recChannel .. "-cmd" })
+    receiver.setChannelList({ recChannel })
 
     ---@diagnostic disable-next-line: undefined-field
-    receiver:onEvent("onReceive", function(_, chan, message)
+    receiver:onEvent("onReceived", function(_, chan, message)
+        -- Restore quotation marks
+        message = message:gsub("&#34;", "\"")
         inQueue[#inQueue + 1] = message
     end)
 
     ---@param data string
     function s.Send(data)
+        -- Can't send quotation marks through the emitter so replace it with HTML code for it.
+        data = data:gsub("\"", "&#34;")
         emitter.send(sendChannel, data)
     end
 
     ---@return string
     function s.Read()
-        return table.remove(inQueue, 1)
+        return table.remove(inQueue, 1) or ""
     end
 
     function s.Clear()
@@ -58,6 +60,10 @@ function RxTx.New(emitter, receiver, channel, isController)
     ---@return boolean
     function s.IsController()
         return isController
+    end
+
+    function s.BlockSize()
+        return 512
     end
 
     return setmetatable(s, RxTx)

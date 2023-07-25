@@ -8,10 +8,45 @@
   "outputPath": "out",
   "libs": [],
   "builds": {
-    "main": {
-      "name": "main",
+    "example/Controller": {
+      "name": "example/Controller",
       "type": "control",
-      "slots": {}
+      "slots": {
+        "core": {
+          "name": "core",
+          "type": "core"
+        },
+        "emitter": {
+          "name": "emitter",
+          "type": "emitter"
+        },
+        "receiver": {
+          "name": "receiver",
+          "type": "receiver"
+        }
+      }
+    },
+    "example/Worker": {
+      "name": "example/Worker",
+      "type": "control",
+      "slots": {
+        "core": {
+          "name": "core",
+          "type": "core"
+        },
+        "emitter": {
+          "name": "emitter",
+          "type": "emitter"
+        },
+        "receiver": {
+          "name": "receiver",
+          "type": "receiver"
+        },
+        "screen": {
+          "name": "screen",
+          "type": "screen"
+        }
+      }
     }
   },
   "targets": {

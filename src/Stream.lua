@@ -73,18 +73,18 @@ function Stream.New(device, parent, timeout)
         local queue = input.queue
 
         if #queue == 0 then
-            table.insert(queue, "")
+            queue[1] = ""
         end
         queue[#queue] = queue[#queue] .. payload
     end
 
     ---Completes a transmission
-    ---@param count number
-    local function completeTransmission(count)
-        if count == 0 then
+    ---@param remaining number
+    local function completeTransmission(remaining)
+        if remaining == 0 then
             local queue = input.queue
 
-            local deserialized = deserialize(queue[#queue])
+            local deserialized = deserialize(queue[1])
 
             parent.OnData(deserialized)
             -- Last part, begin new data
@@ -120,19 +120,19 @@ function Stream.New(device, parent, timeout)
 
     ---Reads incoming data
     ---@return StreamCommand|nil #Command
-    ---@return number #Packet count
+    ---@return number #Packet chunks remaning
     ---@return string #Payload
     local function readData()
         local r = device.Read()
 
-        local count, seq, cmd, payload = r:match("^#(%d+)|(%d)|(%d+)|(.*)$")
+        local remanining, seq, cmd, payload = r:match("^#(%d+)|(%d)|(%d+)|(.*)$")
 
         payload = payload or ""
-        local validPacket = count and cmd
+        local validPacket = remanining and cmd
         if validPacket then
             cmd = tonumber(cmd)
-            count = tonumber(count) or 0
-            validPacket = validPacket and cmd and count
+            remanining = tonumber(remanining) or 0
+            validPacket = validPacket and cmd and remanining
         end
 
         if not validPacket then
@@ -144,12 +144,12 @@ function Stream.New(device, parent, timeout)
             return nil, 0, ""
         end
 
-        return cmd, count, payload
+        return cmd, remanining, payload
     end
 
     ---Call this function once every frame (i.e. in Update)
     function s.Tick()
-        local cmd, count, payload = readData()
+        local cmd, remaining, payload = readData()
 
         -- Did we get any input?
         if cmd then
@@ -159,7 +159,7 @@ function Stream.New(device, parent, timeout)
             if device.IsController() then
                 if cmd == Command.Data then
                     assemblePackage(payload)
-                    completeTransmission(count)
+                    completeTransmission(remaining)
                 end
                 -- No need to handle ACK, it's just a trigger to move on.
                 output.waitingForReply = false
@@ -169,7 +169,7 @@ function Stream.New(device, parent, timeout)
                 if cmd == Command.Poll or cmd == Command.Data then
                     if cmd == Command.Data then
                         assemblePackage(payload)
-                        completeTransmission(count)
+                        completeTransmission(remaining)
                     end
 
                     -- Send either ACK or actual data as a reply

@@ -1,6 +1,4 @@
----@module "interface.DeviceInterface"
 ---@alias onReceiveFunc fun(_:table, channel:string, message:string)
-
 ---@alias EmitterLink {send:fun(channel:string, message:string), setChannelList:fun(table)}
 ---@alias ReceiverLink {setChannelList:fun(channels:channelList), onEvent:fun(_:table, event:string, f:onReceiveFunc)}
 
@@ -10,7 +8,7 @@
 ---@field Clear fun()
 ---@field SetChannel fun(string)
 ---@field BlockSize integer
----@field New fun(emitter, receiver, channel:string, isController:boolean):Device
+---@field New fun(emitter:EmitterLink, receiver:ReceiverLink, channel:string, isController:boolean):Device
 
 ---@alias channelList string[]
 

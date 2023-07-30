@@ -219,12 +219,13 @@ function Stream.New(device, parent, timeout)
         while data:len() > blockSize - headerSize do
             local part = data:sub(1, blockSize)
             data = data:sub(blockSize + 1)
-            table.insert(output.queue, createBlock(blockCount, output, Command.Data, part))
+            output.queue[#output.queue + 1] = createBlock(blockCount, output, Command.Data, part)
             blockCount = blockCount - 1
         end
 
+        -- Remaining data
         if data:len() > 0 then
-            table.insert(output.queue, createBlock(blockCount, output, Command.Data, data))
+            output.queue[#output.queue + 1] = createBlock(blockCount, output, Command.Data, data)
         end
     end
 

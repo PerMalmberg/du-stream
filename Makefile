@@ -25,7 +25,7 @@ clean: clean_cov clean_report
 	@rm -rf out
 
 test: clean
-	@echo Runnings unit tests on du-render
+	@echo Runnings unit tests on du-stream
 	@LUA_PATH="$(LUA_PATH)" busted . --exclude-pattern=".*serializer.*"
 	@luacov
 	@$(CLEAN_COV)

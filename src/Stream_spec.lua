@@ -100,8 +100,8 @@ function DummyReceiver.New()
 end
 
 local function makeObjects(controlTimeOut, workerTimeout)
-    controlTimeOut = controlTimeOut or 1000 -- milliseconds
-    workerTimeout = workerTimeout or 1000
+    controlTimeOut = controlTimeOut or 1
+    workerTimeout = workerTimeout or 1
 
     -- Controller side
     local fakeScreen = FakeScreen.New()
@@ -207,7 +207,7 @@ describe("Stream", function()
         local start = system.getUtcTime()
 
         -- No timeout while just sending polls
-        while system.getUtcTime() - start < 10 do
+        while system.getUtcTime() - start < 1 do
             tick()
         end
 

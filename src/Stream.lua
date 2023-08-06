@@ -87,12 +87,12 @@ function Stream.New(device, parent, timeout)
         end
     end
 
-    local function sameInput(commQueue, seq)
-        if seq == commQueue.seq then
+    local function sameInput(seq)
+        if seq == input.seq then
             return true
         end
 
-        commQueue.seq = seq
+        input.seq = seq
         return false
     end
 
@@ -139,7 +139,7 @@ function Stream.New(device, parent, timeout)
         end
 
         -- Since we can't clear the input when running in RenderScript, we have to rely on the sequence number to prevent duplicate data.
-        if sameInput(input, seq) then
+        if sameInput(seq) then
             return true, nil, 0, ""
         end
 
@@ -164,7 +164,6 @@ function Stream.New(device, parent, timeout)
 
             if new then
                 input.queue = {}
-                input.seq = -1
             end
 
             if device.IsController() then

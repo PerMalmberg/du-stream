@@ -63,7 +63,7 @@ function Stream.New(device, parent, timeout)
 
     device.Clear()
 
-    local input = { queue = {}, waitingForReply = false, seq = -1 }
+    local input = { queue = {}, waitingForReply = false, seq = -1, expectedChunks = -1 }
     local output = { queue = {}, waitingForReply = false, seq = 0 }
     local lastReceived = getTime()
 
@@ -77,11 +77,13 @@ function Stream.New(device, parent, timeout)
     ---@param remaining number
     local function completeTransmission(remaining)
         if remaining == 0 then
-            local complete = concat(input.queue)
+            if input.expectedChunks == #input.queue then
+                local complete = concat(input.queue)
 
-            local deserialized = deserialize(complete)
+                local deserialized = deserialize(complete)
 
-            parent.OnData(deserialized)
+                parent.OnData(deserialized)
+            end
             -- Last part, begin new data
             input.queue = {}
         end
@@ -159,6 +161,13 @@ function Stream.New(device, parent, timeout)
 
         -- Did we get any input?
         if cmd then
+            if new then
+                -- Depending on timing between the controller and worker, there might be data to read from is the last part of a message
+                -- but we don't have the previous parts. Deserializing only the last part (which has remaining = 0 and thus passes the checks) results in an error.
+                -- As such we keep track of the number of chucks each message consists of and ensure that we only process the complete message.
+                input.expectedChunks = remaining + 1
+            end
+
             parent.OnTimeout(false, s)
             lastReceived = getTime()
 

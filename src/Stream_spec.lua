@@ -272,6 +272,7 @@ describe("Stream", function()
         assert.are_equal(data, worker.Data())
         assert.is_false(controller.IsTimedOut())
         assert.is_false(worker.IsTimedOut())
+        print("...pass")
     end
 
     it("Can send alot of data of lengths", function()

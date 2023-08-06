@@ -100,8 +100,8 @@ function DummyReceiver.New()
 end
 
 local function makeObjects(controlTimeOut, workerTimeout)
-    controlTimeOut = controlTimeOut or 1
-    workerTimeout = workerTimeout or 1
+    controlTimeOut = controlTimeOut or 1000 -- milliseconds
+    workerTimeout = workerTimeout or 1000
 
     -- Controller side
     local fakeScreen = FakeScreen.New()
@@ -120,6 +120,17 @@ local function makeObjects(controlTimeOut, workerTimeout)
             screenStream.Tick()
         end
     end
+end
+
+local function generateData(len)
+    -- Making these functions local spees things up by ~100 times
+    local char = string.char
+    local rnd = math.random
+    local data = {}
+    for _ = 1, len do
+        data[#data + 1] = char(rnd(32, 126))
+    end
+    return table.concat(data)
 end
 
 describe("Stream", function()
@@ -196,7 +207,7 @@ describe("Stream", function()
         local start = system.getUtcTime()
 
         -- No timeout while just sending polls
-        while system.getUtcTime() - start < 1 do
+        while system.getUtcTime() - start < 10 do
             tick()
         end
 
@@ -246,5 +257,37 @@ describe("Stream", function()
         assert.are_equal(123, worker.Data().abc.def.v)
         assert.is_false(controller.IsTimedOut())
         assert.is_false(worker.IsTimedOut())
+    end)
+
+    local function testLength(len)
+        print("Testing length " .. len)
+        local controller, controllerStream, worker, screenStream, tick = makeObjects()
+        local data = generateData(len)
+        controllerStream.Write(data)
+        repeat
+            tick()
+            local waiting = controllerStream.WaitingToSend() or screenStream.WaitingToSend()
+        until not waiting
+
+        assert.are_equal(data, worker.Data())
+        assert.is_false(controller.IsTimedOut())
+        assert.is_false(worker.IsTimedOut())
+    end
+
+    it("Can send alot of data of lengths", function()
+        math.randomseed(42) -- Make it repeatable
+        for len = 1, 1000 do
+            testLength(len)
+        end
+
+        for len = 1000, 100000, 1000 do
+            testLength(len)
+        end
+    end)
+
+    it("Fails on too large data", function()
+        assert.has_error(function()
+            testLength(1024 * 1000)
+        end, "Too large data")
     end)
 end)

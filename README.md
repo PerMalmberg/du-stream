@@ -17,3 +17,5 @@ Worker:
 2. Emitter
 3. Receiver
 4. Screen
+
+> Note: The stream will signal an error if the data to send is larger than can fit in 999 blocks since the header has a fixed size.

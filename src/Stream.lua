@@ -1,11 +1,11 @@
 local _ = require("serializer")
+local concat = table.concat
 
 ---@module "interface.Device"
 
 ---@alias CommQueue { queue:string[], waitingForReply:boolean, seq:integer }
 ---@alias ScreenLink {setScriptInput:fun(string), clearScriptOutput:fun(), getScriptOutput:fun():string}
 ---@alias Renderer {setOutput:fun(string), getInput:fun():string}
----@alias StreamData {output:CommQueue, input:CommQueue, lastReceived:number}
 
 ---@class Stream
 ---@field New fun(device:Device, parent:DataReceiver, timeout:number):Stream
@@ -15,21 +15,27 @@ local _ = require("serializer")
 
 --[[
     Data format:
-    #remaining_chucks|seq|cmd|payload
+    #new_message|remaining_chunks|seq|cmd|payload
 
     Where:
-    - remaining_chunks is a 2-digit integer indicating how many chunks remains to complete the message. 0 means the last chuck.
+    - new_message is 0 or 1 where 0 means continuation of a message, and 1 means a new message.
+    - remaining_chunks is an integer indicating how many chunks remains to complete the message. 0 means the last chuck.
     - seq is a single digit seqence number, used to ensure we don't read the same data twice. It wraps around at 9.
     - cmd is a two digit integer indicating what to do with the data
     - payload is the actual payload, if any
 ]]
-local headerSize = 1 -- #
-    + 2              -- remaining_chucks
-    + 1              -- |
-    + 1              -- seq
-    + 1              -- |
-    + 2              -- cmd
-    + 1              -- |
+local HEADER_SIZE = 1 -- #
+    + 1               -- new_message
+    + 1               -- |
+    + 3               -- remaining_chucks
+    + 1               -- |
+    + 1               -- seq
+    + 1               -- |
+    + 2               -- cmd
+    + 1               -- |
+
+local BLOCK_HEADER_FORMAT = "#%0.1d|%0.3d|%0.1d|%0.2d|%s"
+local BLOCK_HEADER_PATTERN = "^#(%d)|(%d+)|(%d)|(%d+)|(.*)$"
 
 ---@enum StreamCommand
 local Command = {
@@ -50,45 +56,34 @@ Stream.__index = Stream
 ---@return Stream
 function Stream.New(device, parent, timeout)
     local s = {}
-    local blockSize = device.BlockSize() - headerSize -- Game allows max 1024 bytes in buffers
+    local DATA_SIZE = device.BlockSize() - HEADER_SIZE -- Game allows only a certain amount of bytes in buffers
 
     ---@diagnostic disable-next-line: undefined-global
     local getTime = getTime or system.getUtcTime
 
     device.Clear()
 
-    ---@type StreamData
-    local streamData = {
-        input = { queue = {}, waitingForReply = false, seq = 0 },
-        output = { queue = {}, waitingForReply = false, seq = 0 },
-        lastReceived = getTime()
-    }
-
-    local input = streamData.input
-    local output = streamData.output
+    local input = { queue = {}, waitingForReply = false, seq = -1 }
+    local output = { queue = {}, waitingForReply = false, seq = 0 }
+    local lastReceived = getTime()
 
     ---Assembles the package
     ---@param payload string
     local function assemblePackage(payload)
-        local queue = input.queue
-
-        if #queue == 0 then
-            queue[1] = ""
-        end
-        queue[#queue] = queue[#queue] .. payload
+        input.queue[#input.queue + 1] = payload
     end
 
     ---Completes a transmission
     ---@param remaining number
     local function completeTransmission(remaining)
         if remaining == 0 then
-            local queue = input.queue
+            local complete = concat(input.queue)
 
-            local deserialized = deserialize(queue[1])
+            local deserialized = deserialize(complete)
 
             parent.OnData(deserialized)
             -- Last part, begin new data
-            queue[1] = ""
+            input.queue = {}
         end
     end
 
@@ -102,59 +97,75 @@ function Stream.New(device, parent, timeout)
     end
 
     ---Creates a block
+    ---@param newMessage boolean
     ---@param blockCount integer
     ---@param commQueue CommQueue
     ---@param cmd StreamCommand
     ---@param payload string?
     ---@return string
-    local function createBlock(blockCount, commQueue, cmd, payload)
+    local function createBlock(newMessage, blockCount, commQueue, cmd, payload)
         commQueue.seq = (commQueue.seq + 1)
         if commQueue.seq > 9 then
             commQueue.seq = 0
         end
 
         payload = payload or ""
-        local b = string.format("#%0.2d|%0.1d|%0.2d|%s", blockCount, commQueue.seq, cmd, payload)
+        local b = string.format(BLOCK_HEADER_FORMAT, (newMessage and 1 or 0), blockCount, commQueue.seq, cmd,
+            payload)
         return b
     end
 
     ---Reads incoming data
+    ---@return boolean #New message
     ---@return StreamCommand|nil #Command
     ---@return number #Packet chunks remaning
     ---@return string #Payload
     local function readData()
         local r = device.Read()
 
-        local remanining, seq, cmd, payload = r:match("^#(%d+)|(%d)|(%d+)|(.*)$")
+        local new, remanining, seq, cmd, payload = r:match(BLOCK_HEADER_PATTERN)
 
         payload = payload or ""
-        local validPacket = remanining and cmd
+        local validPacket = remanining and cmd and new
         if validPacket then
             cmd = tonumber(cmd)
             remanining = tonumber(remanining) or 0
-            validPacket = validPacket and cmd and remanining
+            new = tonumber(new)
+            validPacket = cmd and remanining and new
         end
 
         if not validPacket then
-            return nil, 0, ""
+            return true, nil, 0, ""
         end
 
         -- Since we can't clear the input when running in RenderScript, we have to rely on the sequence number to prevent duplicate data.
         if sameInput(input, seq) then
-            return nil, 0, ""
+            return true, nil, 0, ""
         end
 
-        return cmd, remanining, payload
+        return new == 1, cmd, remanining, payload
+    end
+
+    local function resetQueues()
+        output.queue = {}
+        output.waitingForReply = false
+        input.queue = {}
+        input.waitingForReply = false
     end
 
     ---Call this function once every frame (i.e. in Update)
     function s.Tick()
-        local cmd, remaining, payload = readData()
+        local new, cmd, remaining, payload = readData()
 
         -- Did we get any input?
         if cmd then
             parent.OnTimeout(false, s)
-            streamData.lastReceived = getTime()
+            lastReceived = getTime()
+
+            if new then
+                input.queue = {}
+                input.seq = -1
+            end
 
             if device.IsController() then
                 if cmd == Command.Data then
@@ -179,53 +190,50 @@ function Stream.New(device, parent, timeout)
                         sendAck = true
                     end
                 elseif cmd == Command.Reset then
-                    output.queue = {}
-                    output.waitingForReply = false
-                    input.queue = {}
-                    input.waitingForReply = false
+                    resetQueues()
                     sendAck = true
                 end
 
                 if sendAck then
-                    device.Send(createBlock(0, output, Command.Ack))
+                    device.Send(createBlock(true, 0, output, Command.Ack))
                 end
             end
         end
 
-        if getTime() - streamData.lastReceived >= timeout then
+        if getTime() - lastReceived >= timeout then
             parent.OnTimeout(true, s)
-            streamData.lastReceived = getTime() -- Reset to trigger again
-            output.queue = {}
-            output.waitingForReply = false
+            lastReceived = getTime() -- Reset to trigger again
+            resetQueues()
         end
 
         if device.IsController() and not output.waitingForReply then
             if #output.queue == 0 then
-                device.Send(createBlock(0, output, Command.Poll))
-                output.waitingForReply = true
+                device.Send(createBlock(true, 0, output, Command.Poll))
             else
                 device.Send(table.remove(output.queue, 1))
-                output.waitingForReply = true
             end
+            output.waitingForReply = true
         end
     end
 
     ---Write the data to the stream
     ---@param dataToSend table|string
     function s.Write(dataToSend)
-        local data = serialize(dataToSend)
-        local blockCount = math.ceil(data:len() / blockSize) - 1
+        local data = serialize(dataToSend) ---@type string
+        local blockCount = math.ceil(data:len() / DATA_SIZE)
 
-        while data:len() > blockSize - headerSize do
-            local part = data:sub(1, blockSize)
-            data = data:sub(blockSize + 1)
-            output.queue[#output.queue + 1] = createBlock(blockCount, output, Command.Data, part)
-            blockCount = blockCount - 1
+        if blockCount > 999 then
+            error("Too large data")
         end
 
-        -- Remaining data
-        if data:len() > 0 then
-            output.queue[#output.queue + 1] = createBlock(blockCount, output, Command.Data, data)
+        local new = true
+
+        while data:len() > 0 do
+            blockCount = blockCount - 1
+            local part = data:sub(1, DATA_SIZE)
+            data = data:sub(DATA_SIZE + 1)
+            output.queue[#output.queue + 1] = createBlock(new, blockCount, output, Command.Data, part)
+            new = false
         end
     end
 

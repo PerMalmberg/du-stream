@@ -210,6 +210,7 @@ function Stream.New(device, parent, timeout)
 
         if getTime() - lastReceived >= timeout then
             parent.OnTimeout(true, s)
+            input.expectedChunks = -1
             lastReceived = getTime() -- Reset to trigger again
             resetQueues()
         end

@@ -1,4 +1,5 @@
 local _ = require("serializer")
+local byte = string.byte
 local concat = table.concat
 
 ---@module "interface.Device"
@@ -15,10 +16,11 @@ local concat = table.concat
 
 --[[
     Data format:
-    #new_message|remaining_chunks|seq|cmd|payload
+    #new_message|checksum|remaining_chunks|seq|cmd|payload
 
     Where:
     - new_message is 0 or 1 where 0 means continuation of a message, and 1 means a new message.
+    - checksum is HEX representation of the XOR checksum of the data
     - remaining_chunks is an integer indicating how many chunks remains to complete the message. 0 means the last chuck.
     - seq is a single digit seqence number, used to ensure we don't read the same data twice. It wraps around at 9.
     - cmd is a two digit integer indicating what to do with the data
@@ -27,6 +29,8 @@ local concat = table.concat
 local HEADER_SIZE = 1 -- #
     + 1               -- new_message
     + 1               -- |
+    + 2               -- checksum
+    + 1               -- |
     + 3               -- remaining_chucks
     + 1               -- |
     + 1               -- seq
@@ -34,8 +38,8 @@ local HEADER_SIZE = 1 -- #
     + 2               -- cmd
     + 1               -- |
 
-local BLOCK_HEADER_FORMAT = "#%0.1d|%0.3d|%0.1d|%0.2d|%s"
-local BLOCK_HEADER_PATTERN = "^#(%d)|(%d+)|(%d)|(%d+)|(.*)$"
+local BLOCK_HEADER_FORMAT = "#%0.1d|%0.2x|%0.3d|%0.1d|%0.2d|%s"
+local BLOCK_HEADER_PATTERN = "^#(%d)|(%x%x)|(%d+)|(%d)|(%d+)|(.*)$"
 
 ---@enum StreamCommand
 local Command = {
@@ -63,9 +67,20 @@ function Stream.New(device, parent, timeout)
 
     device.Clear()
 
-    local input = { queue = {}, waitingForReply = false, seq = -1, expectedChunks = -1 }
+    local input = { queue = {}, waitingForReply = false, seq = -1, payloadChecksum = 0 }
     local output = { queue = {}, waitingForReply = false, seq = 0 }
     local lastReceived = getTime()
+
+    ---@param data string
+    ---@return string # Two character HEX value
+    local function xor(data)
+        local x = 0
+        for i = 1, data:len() do
+            x = x ~ byte(data, i)
+        end
+
+        return x
+    end
 
     ---Assembles the package
     ---@param payload string
@@ -77,13 +92,13 @@ function Stream.New(device, parent, timeout)
     ---@param remaining number
     local function completeTransmission(remaining)
         if remaining == 0 then
-            if input.expectedChunks == #input.queue then
-                local complete = concat(input.queue)
+            local complete = concat(input.queue)
 
+            if xor(complete) == input.payloadChecksum then
                 local deserialized = deserialize(complete)
-
                 parent.OnData(deserialized)
             end
+
             -- Last part, begin new data
             input.queue = {}
         end
@@ -105,15 +120,18 @@ function Stream.New(device, parent, timeout)
     ---@param cmd StreamCommand
     ---@param payload string?
     ---@return string
-    local function createBlock(newMessage, blockCount, commQueue, cmd, payload)
+    local function createBlock(newMessage, blockCount, commQueue, cmd, payload, checksum)
+        checksum = checksum or 0
+
         commQueue.seq = (commQueue.seq + 1)
         if commQueue.seq > 9 then
             commQueue.seq = 0
         end
 
         payload = payload or ""
-        local b = string.format(BLOCK_HEADER_FORMAT, (newMessage and 1 or 0), blockCount, commQueue.seq, cmd,
+        local b = string.format(BLOCK_HEADER_FORMAT, (newMessage and 1 or 0), checksum, blockCount, commQueue.seq, cmd,
             payload)
+
         return b
     end
 
@@ -122,30 +140,32 @@ function Stream.New(device, parent, timeout)
     ---@return StreamCommand|nil #Command
     ---@return number #Packet chunks remaning
     ---@return string #Payload
+    ---@return integer #Checksum
     local function readData()
         local r = device.Read()
 
-        local new, remanining, seq, cmd, payload = r:match(BLOCK_HEADER_PATTERN)
+        local new, checksum, remaining, seq, cmd, payload = r:match(BLOCK_HEADER_PATTERN)
 
         payload = payload or ""
-        local validPacket = remanining and cmd and new
+        local validPacket = remaining and cmd and new and checksum
         if validPacket then
             cmd = tonumber(cmd)
-            remanining = tonumber(remanining) or 0
             new = tonumber(new)
-            validPacket = cmd and remanining and new
+            remaining = tonumber(remaining)
+            checksum = tonumber("0x" .. checksum)
+            validPacket = cmd and remaining and new and checksum
         end
 
         if not validPacket then
-            return true, nil, 0, ""
+            return true, nil, 0, "", 0
         end
 
         -- Since we can't clear the input when running in RenderScript, we have to rely on the sequence number to prevent duplicate data.
         if sameInput(seq) then
-            return true, nil, 0, ""
+            return true, nil, 0, "", 0
         end
 
-        return new == 1, cmd, remanining, payload
+        return new == 1, cmd, remaining, payload, checksum
     end
 
     local function resetQueues()
@@ -157,15 +177,12 @@ function Stream.New(device, parent, timeout)
 
     ---Call this function once every frame (i.e. in Update)
     function s.Tick()
-        local new, cmd, remaining, payload = readData()
+        local new, cmd, remaining, payload, checksum = readData()
 
         -- Did we get any input?
         if cmd then
             if new then
-                -- Depending on timing between the controller and worker, there might be data to read from is the last part of a message
-                -- but we don't have the previous parts. Deserializing only the last part (which has remaining = 0 and thus passes the checks) results in an error.
-                -- As such we keep track of the number of chucks each message consists of and ensure that we only process the complete message.
-                input.expectedChunks = remaining + 1
+                input.payloadChecksum = checksum
             end
 
             parent.OnTimeout(false, s)
@@ -210,7 +227,7 @@ function Stream.New(device, parent, timeout)
 
         if getTime() - lastReceived >= timeout then
             parent.OnTimeout(true, s)
-            input.expectedChunks = -1
+            input.payloadChecksum = 0
             lastReceived = getTime() -- Reset to trigger again
             resetQueues()
         end
@@ -229,6 +246,7 @@ function Stream.New(device, parent, timeout)
     ---@param dataToSend table|string
     function s.Write(dataToSend)
         local data = serialize(dataToSend) ---@type string
+        local checksum = xor(data)
         local blockCount = math.ceil(data:len() / DATA_SIZE)
 
         if blockCount > 999 then
@@ -241,8 +259,9 @@ function Stream.New(device, parent, timeout)
             blockCount = blockCount - 1
             local part = data:sub(1, DATA_SIZE)
             data = data:sub(DATA_SIZE + 1)
-            output.queue[#output.queue + 1] = createBlock(new, blockCount, output, Command.Data, part)
+            output.queue[#output.queue + 1] = createBlock(new, blockCount, output, Command.Data, part, checksum)
             new = false
+            checksum = 0
         end
     end
 
